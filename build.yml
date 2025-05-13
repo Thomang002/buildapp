@@ -1,0 +1,58 @@
+name: Build ClashMeta + Zashboard APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y unzip wget git
+
+      - name: Build Zashboard
+        run: bash scripts/build-webui.sh
+
+      - name: Build ClashMetaForAndroid APK
+        working-directory: ClashMetaForAndroid
+        run: ./gradlew assembleRelease
+
+      - name: Rename APK
+        run: |
+          VERSION=$(date +'%Y%m%d-%H%M')
+          mv ClashMetaForAndroid/app/build/outputs/apk/release/app-release.apk ClashMeta-Zashboard-$VERSION.apk
+          echo "APK_NAME=ClashMeta-Zashboard-$VERSION.apk" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ClashMeta-Zashboard-APK
+          path: ${{ env.APK_NAME }}
+
+      - name: Create Pre-Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: pre-${{ github.run_number }}
+          name: ClashMeta-Zashboard Build ${{ github.run_number }}
+          body: "Build otomatis oleh GitHub Actions."
+          draft: false
+          prerelease: true
+          files: ${{ env.APK_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
